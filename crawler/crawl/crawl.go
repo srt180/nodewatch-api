@@ -14,12 +14,19 @@ import (
 	ipResolver "eth2-crawler/resolver"
 	"eth2-crawler/store/peerstore"
 	"eth2-crawler/store/record"
+	"fmt"
+	"github.com/libp2p/go-libp2p/core/network"
+	"github.com/libp2p/go-libp2p/core/protocol"
 	"time"
 
 	"github.com/protolambda/zrnt/eth2/beacon/common"
 
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/p2p/enode"
+	prysm_p2p "github.com/prysmaticlabs/prysm/v3/beacon-chain/p2p"
+	"github.com/prysmaticlabs/prysm/v3/beacon-chain/p2p/encoder"
+	p2ptypes "github.com/prysmaticlabs/prysm/v3/beacon-chain/p2p/types"
+	types "github.com/prysmaticlabs/prysm/v3/consensus-types/primitives"
 )
 
 type crawler struct {
@@ -63,6 +70,39 @@ func newCrawler(disc resolver, peerStore peerstore.Provider, historyStore record
 func (c *crawler) start(ctx context.Context) {
 	doneCh := make(chan enode.Iterator)
 	go c.runIterator(ctx, doneCh, c.iter)
+
+	c.host.Network().Notify(&network.NotifyBundle{
+		ConnectedF: func(n network.Network, conn network.Conn) {
+			log.Info("connected", "ma", conn.RemoteMultiaddr().String())
+		},
+		DisconnectedF: func(n network.Network, conn network.Conn) {
+			log.Info("disconnected", "ma", conn.RemoteMultiaddr().String())
+		},
+	})
+
+	goodbyeTopic := prysm_p2p.RPCGoodByeTopicV1 + "/ssz_snappy"
+
+	c.host.SetStreamHandler(protocol.ID(goodbyeTopic), func(stream network.Stream) {
+		defer func() {
+			_err := stream.Reset()
+			_ = _err
+		}()
+
+		var m types.SSZUint64
+
+		if err := c.Encoding().DecodeWithMaxLength(stream, &m); err != nil {
+			log.Error("decode err", err)
+			return
+		}
+		//c.peers.SetConnectionState(stream.Conn().RemotePeer(), peers.PeerDisconnected)
+
+		log.Info("recv goodbye", "for", goodbyeMessage(m), "peer", stream.Conn().RemoteMultiaddr())
+		//log.
+		//	WithField("for", goodbyeMessage(m)).
+		//	WithField("peer", stream.ID()).
+		//	Info("recv goodbye")
+	})
+
 	for {
 		select {
 		case n := <-c.nodeCh:
@@ -73,6 +113,18 @@ func (c *crawler) start(ctx context.Context) {
 			return
 		}
 	}
+}
+
+func (c *crawler) Encoding() encoder.NetworkEncoding {
+	return &encoder.SszNetworkEncoder{}
+}
+
+func goodbyeMessage(num p2ptypes.RPCGoodbyeCode) string {
+	reason, ok := p2ptypes.GoodbyeCodeMessages[num]
+	if ok {
+		return reason
+	}
+	return fmt.Sprintf("unknown goodbye value of %d received", num)
 }
 
 // runIterator uses the node iterator and sends node data through channel

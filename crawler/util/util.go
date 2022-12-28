@@ -8,15 +8,16 @@ import (
 	"bytes"
 	"encoding/hex"
 	"fmt"
+	"github.com/pkg/errors"
 	"net"
 	"time"
 
 	"github.com/ethereum/go-ethereum/p2p/enode"
-	"github.com/libp2p/go-libp2p-core/crypto"
-	"github.com/libp2p/go-libp2p-core/peer"
+	"github.com/libp2p/go-libp2p/core/peer"
 	"github.com/multiformats/go-multiaddr"
 	beacon "github.com/protolambda/zrnt/eth2/beacon/common"
 	"github.com/protolambda/ztyp/codec"
+	ecdsaprysm "github.com/prysmaticlabs/prysm/v3/crypto/ecdsa"
 )
 
 func AddrsFromEnode(node *enode.Node) (*peer.AddrInfo, error) {
@@ -50,7 +51,13 @@ func EnodeToMultiAddr(node *enode.Node) ([]multiaddr.Multiaddr, error) {
 		ipScheme = "ip6"
 	}
 	pubkey := node.Pubkey()
-	peerID, err := peer.IDFromPublicKey(crypto.PubKey((*crypto.Secp256k1PublicKey)(pubkey)))
+
+	assertedKey, err := ecdsaprysm.ConvertToInterfacePubkey(pubkey)
+	if err != nil {
+		return nil, errors.Wrap(err, "could not get pubkey")
+	}
+
+	peerID, err := peer.IDFromPublicKey(assertedKey)
 	if err != nil {
 		return nil, err
 	}

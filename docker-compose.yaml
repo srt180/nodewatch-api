@@ -30,19 +30,19 @@ services:
       start_period: 40s
     restart: on-failure
 
-  crawler:
-    image: "crawler-dev:latest"
-    build:
-      context: .
-      dockerfile: Dockerfile
-    env_file:
-      - .env
-    environment:
-      MONGODB_URI: mongodb://${MONGODB_USR:-mongoUsr}:${MONGODB_PWD:-mongoPwd}@mongo-db:27017
-    ports:
-      - "8080:8080/tcp"
-    depends_on:
-      - mongo-db
-    networks:
-      - crawler_net
-    restart: on-failure
+#  crawler:
+#    image: "crawler-dev:latest"
+#    build:
+#      context: .
+#      dockerfile: Dockerfile
+#    env_file:
+#      - .env
+#    environment:
+#      MONGODB_URI: mongodb://${MONGODB_USR:-mongoUsr}:${MONGODB_PWD:-mongoPwd}@mongo-db:27017
+#    ports:
+#      - "8080:8080/tcp"
+#    depends_on:
+#      - mongo-db
+#    networks:
+#      - crawler_net
+#    restart: on-failure

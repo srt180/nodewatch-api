@@ -18,10 +18,11 @@ import (
 	ipResolver "eth2-crawler/resolver"
 
 	"github.com/ethereum/go-ethereum/crypto"
+	"github.com/ethereum/go-ethereum/log"
 	"github.com/libp2p/go-libp2p"
-	ic "github.com/libp2p/go-libp2p-core/crypto"
-	noise "github.com/libp2p/go-libp2p-noise"
-	"github.com/libp2p/go-tcp-transport"
+	ic "github.com/libp2p/go-libp2p/core/crypto"
+	"github.com/libp2p/go-libp2p/p2p/security/noise"
+	"github.com/libp2p/go-libp2p/p2p/transport/tcp"
 	ma "github.com/multiformats/go-multiaddr"
 )
 
@@ -55,7 +56,7 @@ func Initialize(peerStore peerstore.Provider, historyStore record.Provider, ipRe
 		return err
 	}
 	host, err := p2p.NewHost(
-		libp2p.Identity(convertToInterfacePrivkey(listenCfg.privateKey)),
+		libp2p.Identity(ConvertToInterfacePrivkey(listenCfg.privateKey)),
 		libp2p.ListenAddrs(listenAddrs),
 		libp2p.UserAgent("Eth2-Crawler"),
 		libp2p.Transport(tcp.NewTCPTransport),
@@ -77,13 +78,31 @@ func Initialize(peerStore peerstore.Provider, historyStore record.Provider, ipRe
 	if err != nil {
 		return err
 	}
+	_, err = scheduler.AddFunc("@every 1m", func() {
+		log.Info("peer summary", "len", len(c.host.Network().Peers()))
+	})
 	scheduler.Start()
 	return nil
 }
 
-func convertToInterfacePrivkey(privkey *ecdsa.PrivateKey) ic.PrivKey {
-	typeAssertedKey := ic.PrivKey((*ic.Secp256k1PrivateKey)(privkey))
-	return typeAssertedKey
+//func convertToInterfacePrivkey(privkey *ecdsa.PrivateKey) ic.PrivKey {
+//	typeAssertedKey := ic.PrivKey((*ic.Secp256k1PrivateKey)(privkey))
+//	return typeAssertedKey
+//}
+
+func ConvertToInterfacePrivkey(privkey *ecdsa.PrivateKey) ic.PrivKey {
+	privBytes := privkey.D.Bytes()
+	// In the event the number of bytes outputted by the big-int are less than 32,
+	// we append bytes to the start of the sequence for the missing most significant
+	// bytes.
+	if len(privBytes) < 32 {
+		privBytes = append(make([]byte, 32-len(privBytes)), privBytes...)
+	}
+	if k, err := ic.UnmarshalSecp256k1PrivateKey(privBytes); err == nil {
+		return k
+	} else {
+		panic(err)
+	}
 }
 
 func multiAddressBuilder(ipAddr net.IP, port int) (ma.Multiaddr, error) {

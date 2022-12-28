@@ -7,6 +7,7 @@ package models
 import (
 	"encoding/hex"
 	"encoding/json"
+	"github.com/ethereum/go-ethereum/crypto"
 	"strings"
 	"time"
 
@@ -14,8 +15,7 @@ import (
 
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/p2p/enode"
-	ic "github.com/libp2p/go-libp2p-core/crypto"
-	"github.com/libp2p/go-libp2p-core/peer"
+	"github.com/libp2p/go-libp2p/core/peer"
 	ma "github.com/multiformats/go-multiaddr"
 	"github.com/protolambda/zrnt/eth2/beacon/common"
 )
@@ -163,11 +163,12 @@ type Peer struct {
 
 // NewPeer initializes new peer
 func NewPeer(node *enode.Node, eth2Data *common.Eth2Data) (*Peer, error) {
-	pk := ic.PubKey((*ic.Secp256k1PublicKey)(node.Pubkey()))
-	pkByte, err := pk.Raw()
-	if err != nil {
-		return nil, err
-	}
+	//pk := ic.PubKey((*ic.Secp256k1PublicKey)(node.Pubkey()))
+	//
+	//pkByte, err := pk.Raw()
+	//if err != nil {
+	//	return nil, err
+	//}
 	addr, err := util.AddrsFromEnode(node)
 	if err != nil {
 		return nil, err
@@ -185,7 +186,7 @@ func NewPeer(node *enode.Node, eth2Data *common.Eth2Data) (*Peer, error) {
 	return &Peer{
 		ID:              addr.ID,
 		NodeID:          node.ID().String(),
-		Pubkey:          hex.EncodeToString(pkByte),
+		Pubkey:          hex.EncodeToString(crypto.FromECDSAPub(node.Pubkey())[1:]),
 		IP:              node.IP().String(),
 		TCPPort:         node.TCP(),
 		UDPPort:         node.UDP(),
